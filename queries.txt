@@ -1,0 +1,145 @@
+--Columns with NULLS
+SELECT 
+    sum(case when artist_name is null then 1 else 0 end) as artist_name, 
+    sum(case when auth is null then 1 else 0 end) as auth, 
+    sum(case when first_name is null then 1 else 0 end) as first_name,
+    sum(case when gender is null then 1 else 0 end) as gender,
+    sum(case when item_in_session is null then 1 else 0 end) as item_in_session,
+    sum(case when last_name is null then 1 else 0 end) as last_name,
+    sum(case when length is null then 1 else 0 end) as length,
+    sum(case when level is null then 1 else 0 end) as level,
+    sum(case when location is null then 1 else 0 end) as location,
+    sum(case when method is null then 1 else 0 end) as method,
+    sum(case when page is null then 1 else 0 end) as page,
+    sum(case when registration is null then 1 else 0 end) as registration,
+    sum(case when session_id is null then 1 else 0 end) as session_id,
+    sum(case when song is null then 1 else 0 end) as song,
+    sum(case when status is null then 1 else 0 end) as status,
+    sum(case when ts is null then 1 else 0 end) as ts,
+    sum(case when user_agent is null then 1 else 0 end) as user_agent,
+    sum(case when user_id is null then 1 else 0 end) as user_id
+FROM staging_events;
+
+SELECT 
+    sum(case when artist_id is null then 1 else 0 end) as artist_id, 
+    sum(case when artist_latitude is null then 1 else 0 end) as artist_latitude,
+    sum(case when artist_longitude is null then 1 else 0 end) as artist_longitude,
+    sum(case when artist_location is null then 1 else 0 end) as artist_location,
+    sum(case when artist_name is null then 1 else 0 end) as artist_name,
+    sum(case when song_id is null then 1 else 0 end) as song_id,
+    sum(case when title is null then 1 else 0 end) as title,
+    sum(case when duration is null then 1 else 0 end) as duration,
+    sum(case when year is null then 1 else 0 end) as year
+FROM staging_songs;
+
+--MAX values
+SELECT MAX(item_in_session) AS item_in_session, 
+       MAX(registration) AS registration,
+       MAX(session_id) AS session_id,
+       MAX(status) AS status,
+       MAX(user_id) AS user_id
+FROM staging_events;
+
+--Max user_id
+SELECT user_id,
+       first_name,
+       last_name,
+       gender,
+       level,
+       max(ts) AS ts
+FROM staging_events
+GROUP BY user_id,
+         first_name,
+         last_name,
+         gender,
+         level
+ORDER BY user_id;
+
+--Counts of staging tables
+SELECT 'staging_events' AS table_name, COUNT(*) FROM staging_events
+UNION ALL
+SELECT 'staging_songs' AS table_name, COUNT(*) FROM staging_songs;
+
+--Users
+SELECT user_id
+     , first_name
+     , last_name
+     , gender
+     , level
+  FROM staging_events
+ LIMIT 5;
+
+--Users
+SELECT user_id
+     , first_name
+     , last_name
+     , gender
+     , level
+  FROM (SELECT ROW_NUMBER() OVER(
+               PARTITION BY user_id ORDER BY ts DESC) AS row_num 
+             , user_id
+             , first_name
+             , last_name
+             , gender
+             , level
+             , ts
+          FROM staging_events
+         WHERE page = 'NextSong')
+ WHERE row_num = 1;
+ 
+ --songs
+ SELECT song_id
+     , title
+     , artist_id
+     , year
+     , duration
+FROM staging_songs;
+
+--songplays
+SELECT se.start_time
+     , se.user_id
+     , se.level
+     , s.song_id
+     , a.artist_id
+     , se.session_id
+     , se.location
+     , se.user_agent
+FROM staging_events se
+LEFT JOIN songs s
+       ON se.song = s.title
+LEFT JOIN artists a
+       ON se.artist_name = a.name;
+       
+--insert songplays
+INSERT INTO songplays (start_time, user_id, level, song_id, artist_id, session_id, location, user_agent)
+VALUES (
+SELECT se.ts
+     , se.user_id
+     , se.level
+     , s.song_id
+     , a.artist_id
+     , se.session_id
+     , se.location
+     , se.user_agent
+  FROM staging_events se
+  LEFT JOIN songs s
+         ON se.song = s.title
+  LEFT JOIN artists a
+         ON se.artist_name = a.name
+ ORDER BY se.ts
+);
+
+--COUNTS
+SELECT 'artists' as table_name, count(*) from artists
+UNION ALL
+SELECT 'songplays' as table_name, count(*) from songplays
+UNION ALL
+SELECT 'songs' as table_name, count(*) from songs
+UNION ALL
+SELECT 'staging_events' as table_name, count(*) from staging_events
+UNION ALL
+SELECT 'staging_songs' as table_name, count(*) from staging_songs
+UNION ALL
+SELECT 'time' as table_name, count(*) from time
+UNION ALL
+SELECT 'users' as table_name, count(*) from users;
